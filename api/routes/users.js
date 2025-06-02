@@ -6,8 +6,9 @@ const CustomError = require('../lib/Error');
 const Enum = require('../config/Enum');
 const UserRoles = require('../db/models/UserRoles');
 const Roles = require('../db/models/Roles');
-const config = require('../config');
 const is = require("is_js");
+const config = require('../config');
+const jwt = require('jwt-simple');
 var router = express.Router();
 
 
@@ -18,20 +19,19 @@ router.post("/register", async (req, res) => {
   let body = req.body;
   try {
 
-    let user = await Users.findOne({});
+    if (!body.email) throw new CustomError("Validation Error", "email field must be filled", Enum.HTTP_CODES.BAD_REQUEST);
 
-    if (user) {
-      return res.sendStatus(Enum.HTTP_CODES.NOT_FOUND);
+    if (is.not.email(body.email)) throw new CustomError("Validation Error", "email field must be an email format", Enum.HTTP_CODES.BAD_REQUEST);
+
+    let existingUser = await Users.findOne({email: body.email});
+    if (existingUser) {
+      throw new CustomError("Registration Error", "User with this email already exists", Enum.HTTP_CODES.CONFLICT);
     }
 
-    if (!body.email) throw new CustomError(Enum.HTTP_CODES.BAD_REQUEST, "Validation Error!", "email field must be filled");
-
-    if (is.not.email(body.email)) throw new CustomError(Enum.HTTP_CODES.BAD_REQUEST, "Validation Error!", "email field must be an email format");
-
-    if (!body.password) throw new CustomError(Enum.HTTP_CODES.BAD_REQUEST, "Validation Error!", "password field must be filled");
+    if (!body.password) throw new CustomError("Validation Error", "password field must be filled", Enum.HTTP_CODES.BAD_REQUEST);
 
     if (body.password.length < Enum.PASS_LENGTH) {
-      throw new CustomError(Enum.HTTP_CODES.BAD_REQUEST, "Validation Error!", "password length must be greater than " + Enum.PASS_LENGTH);
+      throw new CustomError("Validation Error", "password length must be greater than " + Enum.PASS_LENGTH, Enum.HTTP_CODES.BAD_REQUEST);
     }
 
     let password = bcrypt.hashSync(body.password, bcrypt.genSaltSync(8), null);
@@ -95,24 +95,24 @@ router.post("/add", async (req, res) => {
   let body = req.body;
   try {
 
-    if (!body.email) throw new CustomError(Enum.HTTP_CODES.BAD_REQUEST, "Validation Error", "email field must be filled");
+    if (!body.email) throw new CustomError("Validation Error", "email field must be filled", Enum.HTTP_CODES.BAD_REQUEST);
 
-    if (is.not.email(body.email)) throw new CustomError(Enum.HTTP_CODES.BAD_REQUEST, "Validation Error", "email field must be an email format");
+    if (is.not.email(body.email)) throw new CustomError("Validation Error", "email field must be an email format", Enum.HTTP_CODES.BAD_REQUEST);
 
-    if (!body.password) throw new CustomError(Enum.HTTP_CODES.BAD_REQUEST, "Validation Error", "password field must be filled");
+    if (!body.password) throw new CustomError("Validation Error", "password field must be filled", Enum.HTTP_CODES.BAD_REQUEST);
 
     if (body.password.length < Enum.PASS_LENGTH) {
-      throw new CustomError(Enum.HTTP_CODES.BAD_REQUEST, "Validation Error", "password length must be greater than " + Enum.PASS_LENGTH);
+      throw new CustomError("Validation Error", "password length must be greater than " + Enum.PASS_LENGTH, Enum.HTTP_CODES.BAD_REQUEST);
     }
 
     if (!body.roles || !Array.isArray(body.roles) || body.roles.length == 0) {
-      throw new CustomError(Enum.HTTP_CODES.BAD_REQUEST, "Validation Error", "roles field must be an Array");
+      throw new CustomError("Validation Error", "roles field must be an Array", Enum.HTTP_CODES.BAD_REQUEST);
     }
 
     let roles = await Roles.find({ _id: { $in: body.roles } });
 
     if (roles.length == 0) {
-      throw new CustomError(Enum.HTTP_CODES.BAD_REQUEST, "Validation Error", "roles field must be an Array");
+      throw new CustomError("Validation Error", "roles field must be an Array", Enum.HTTP_CODES.BAD_REQUEST);
     }
 
     let password = bcrypt.hashSync(body.password, bcrypt.genSaltSync(8), null);
@@ -146,7 +146,7 @@ router.put("/update", async (req, res) => {
     let body = req.body;
     let updates = {};
 
-    if (!body._id) throw new CustomError(Enum.HTTP_CODES.BAD_REQUEST, "Validation Error", "_id field must be filled");
+    if (!body._id) throw new CustomError("Validation Error", "_id field must be filled", Enum.HTTP_CODES.BAD_REQUEST);
 
     if (body.password && body.password.length < Enum.PASS_LENGTH) {
       updates.password = bcrypt.hashSync(body.password, bcrypt.genSaltSync(8), null);
@@ -200,7 +200,7 @@ router.post("/delete", async (req, res) => {
   try {
     let body = req.body;
 
-    if (!body._id) throw new CustomError(Enum.HTTP_CODES.BAD_REQUEST, "Validation Error", "_id field must be filled");
+    if (!body._id) throw new CustomError("Validation Error", "_id field must be filled", Enum.HTTP_CODES.BAD_REQUEST);
 
     await Users.deleteOne({ _id: body._id });
 
@@ -213,5 +213,39 @@ router.post("/delete", async (req, res) => {
     res.status(errorResponse.code).json(errorResponse);
   }
 });
+
+router.post("/auth", async (req, res) => {
+  try {
+    let { email, password } = req.body;
+
+    Users.validateFieldsBeforeAuth(email, password);
+
+    let user = await Users.findOne({email});
+
+    if(!user) throw new CustomError("Validation Error", "Invalid email or password", Enum.HTTP_CODES.UNAUTHORIZED);
+
+    if(!user.validPassword(password)) throw new CustomError("Validation Error", "Invalid email or password", Enum.HTTP_CODES.UNAUTHORIZED);
+
+    let payload = {
+      id: user._id,
+      exp: parseInt(Date.now() / 1000) + config.JWT_EXPIRATION_TIME
+    }
+
+    let token = jwt.encode(payload, config.JWT_SECRET);
+
+    let userData = {
+      _id: user._id,
+      email: user.email,
+      first_name: user.first_name,
+      last_name: user.last_name,
+    }
+
+    res.json(Response.successResponse({token, user: userData}));
+
+  } catch (error) {
+    let errorResponse = Response.errorResponse(error);
+    res.status(errorResponse.code).json(errorResponse);
+  }
+})
 
 module.exports = router;
