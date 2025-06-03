@@ -1,5 +1,4 @@
 const CustomError = require('./Error');
-const Enum = require('../config/Enum');
 
 class Response {
     constructor() { }

@@ -1,14 +1,19 @@
 var express = require('express');
 var router = express.Router();
 const Roles = require('../db/models/Roles');
-const Response = require('../lib/response');
+const Response = require('../lib/Response');
 const CustomError = require('../lib/Error');
 const Enum = require('../config/Enum');
 const role_priviliges = require('../config/role_priviliges');
 const RolePrivileges = require('../db/models/RolePrivileges');
+const auth = require("../lib/auth")();
+
+router.all("*", auth.authenticate(),(req, res, next) => {
+    next();
+});
 
 /* GET roles listing. */
-router.get('/', async (req, res, next) => {
+router.get('/', auth.checkRoles("role_view"), async (req, res) => {
 
     try {
         let roles = await Roles.find({});
@@ -19,7 +24,7 @@ router.get('/', async (req, res, next) => {
     }
 });
 
-router.post('/add', async (req, res) => {
+router.post('/add', auth.checkRoles("role_create"), async (req, res) => {
     let body = req.body;
     try {
         if (!body) throw new CustomError('role name is required', 'role name is required', Enum.HTTP_STATUS_CODES.BAD_REQUEST);
@@ -51,7 +56,7 @@ router.post('/add', async (req, res) => {
     }
 })
 
-router.put('/update', async (req, res) => {
+router.put('/update', auth.checkRoles("role_update"), async (req, res) => {
     let body = req.body;
     console.log('PUT /update - Request Body:', JSON.stringify(body, null, 2));
     try {
@@ -90,7 +95,7 @@ router.put('/update', async (req, res) => {
     }
 })
 
-router.delete('/delete', async (req, res) => {
+router.delete('/delete', auth.checkRoles("role_delete"), async (req, res) => {
     let body = req.body;
     try {
         if (!body._id) throw new CustomError('Id is required', 'Id is required', Enum.HTTP_STATUS_CODES.BAD_REQUEST);

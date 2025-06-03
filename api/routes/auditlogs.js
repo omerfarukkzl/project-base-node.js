@@ -3,12 +3,14 @@ const moment = require("moment");
 const Response = require("../lib/Response");
 const AuditLogs = require("../db/models/AuditLogs");
 const router = express.Router();
+const auth = require("../lib/auth")();
 
-router.all("*", (req, res, next) => {
+
+router.all("*", auth.authenticate(),(req, res, next) => {
     next();
 });
 
-router.post("/", async (req, res) => {
+router.post("/",auth.checkRoles("auditlog_view"), async (req, res) => {
     try {
 
         let body = req.body;

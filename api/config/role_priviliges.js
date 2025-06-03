@@ -19,7 +19,7 @@ module.exports = {
         
     ],
 
-    priviliges: [
+    privileges: [
         {
             key: "user_view",
             name: "View User",
@@ -74,11 +74,29 @@ module.exports = {
             group: "AUDITLOGS",
             description: "View Audit Log"
         },
-      
-        
-        
-
-
-        
+        {
+            key: "role_view",
+            name: "View Role",
+            group: "ROLES",
+            description: "View Role"
+        },
+        {
+            key: "role_create",
+            name: "Create Role",
+            group: "ROLES",
+            description: "Create Role"
+        },
+        {
+            key: "role_update",
+            name: "Update Role",
+            group: "ROLES",
+            description: "Update Role"
+        },
+        {
+            key: "role_delete",
+            name: "Delete Role",
+            group: "ROLES",
+            description: "Delete Role"
+        }
     ]
 }

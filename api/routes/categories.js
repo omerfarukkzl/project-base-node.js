@@ -4,10 +4,14 @@ const Categories = require('../db/models/Categories');
 const Response = require('../lib/Response');
 const CustomError = require('../lib/Error');
 const Enum = require('../config/Enum');
-const AuditLogs = require("../lib/AuditLogs");
+const AuditLogs = require("../lib/AuditLogs");const auth = require("../lib/auth")();
+
+router.all("*", auth.authenticate(),(req, res, next) => {
+    next();
+});
 
 /* GET categories listing. */
-router.get('/', async (req, res) => {
+router.get('/', auth.checkRoles("category_view"), async (req, res) => {
   try {
     let categories = await Categories.find({});
 
@@ -18,7 +22,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.post('/add', async (req, res) => {
+router.post('/add', auth.checkRoles("category_create"), async (req, res) => {
   let body = req.body;
   try {
     if (!body.name) {
@@ -41,7 +45,7 @@ router.post('/add', async (req, res) => {
   }
 });
 
-router.put('/update', async (req, res) => {
+router.put('/update', auth.checkRoles("category_update"), async (req, res) => {
   let body = req.body;
 
   try {
@@ -62,7 +66,7 @@ router.put('/update', async (req, res) => {
   }
 })
 
-router.delete('/delete', async (req, res) => {
+router.delete('/delete', auth.checkRoles("category_delete"), async (req, res) => {
   let body = req.body;
   try {
     if (!body._id) throw new CustomError('Id is required', 'Id is required', Enum.HTTP_STATUS_CODES.BAD_REQUEST);

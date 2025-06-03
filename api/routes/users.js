@@ -9,11 +9,44 @@ const Roles = require('../db/models/Roles');
 const is = require("is_js");
 const config = require('../config');
 const jwt = require('jwt-simple');
+const RolePrivileges = require('../db/models/RolePrivileges');
+const role_priviliges = require('../config/role_priviliges');
 var router = express.Router();
+const auth = require("../lib/auth")();
 
+router.post("/auth", async (req, res) => {
+  try {
+    let { email, password } = req.body;
 
+    Users.validateFieldsBeforeAuth(email, password);
 
+    let user = await Users.findOne({ email });
 
+    if (!user) throw new CustomError("Validation Error", "Invalid email or password", Enum.HTTP_CODES.UNAUTHORIZED);
+
+    if (!user.validPassword(password)) throw new CustomError("Validation Error", "Invalid email or password", Enum.HTTP_CODES.UNAUTHORIZED);
+
+    let payload = {
+      id: user._id,
+      exp: parseInt(Date.now() / 1000) + config.JWT_EXPIRATION_TIME
+    }
+
+    let token = jwt.encode(payload, config.JWT_SECRET);
+
+    let userData = {
+      _id: user._id,
+      email: user.email,
+      first_name: user.first_name,
+      last_name: user.last_name,
+    }
+
+    res.json(Response.successResponse({ token, user: userData }));
+
+  } catch (error) {
+    let errorResponse = Response.errorResponse(error);
+    res.status(errorResponse.code).json(errorResponse);
+  }
+})
 
 router.post("/register", async (req, res) => {
   let body = req.body;
@@ -23,7 +56,7 @@ router.post("/register", async (req, res) => {
 
     if (is.not.email(body.email)) throw new CustomError("Validation Error", "email field must be an email format", Enum.HTTP_CODES.BAD_REQUEST);
 
-    let existingUser = await Users.findOne({email: body.email});
+    let existingUser = await Users.findOne({ email: body.email });
     if (existingUser) {
       throw new CustomError("Registration Error", "User with this email already exists", Enum.HTTP_CODES.CONFLICT);
     }
@@ -56,7 +89,14 @@ router.post("/register", async (req, res) => {
       user_id: createdUser._id
     });
 
-
+    // Grant all privileges to super admin
+    for (let privilege of role_priviliges.privileges) {
+      await RolePrivileges.create({
+        role_id: role._id,
+        permission: privilege.key,
+        created_by: createdUser._id
+      });
+    }
 
     res.status(Enum.HTTP_CODES.CREATED).json(Response.successResponse({ success: true }, Enum.HTTP_CODES.CREATED));
 
@@ -65,9 +105,14 @@ router.post("/register", async (req, res) => {
     res.status(errorResponse.code).json(errorResponse);
   }
 })
+router.all("*", auth.authenticate(), (req, res, next) => {
+  next();
+});
+
+
 
 /* GET users listing. */
-router.get('/', async (req, res) => {
+router.get('/', auth.checkRoles("user_view"), async (req, res) => {
   try {
     let users = await Users.find({}, { password: 0 }).lean();
 
@@ -91,7 +136,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.post("/add", async (req, res) => {
+router.post("/add", auth.checkRoles("user_create"), async (req, res) => {
   let body = req.body;
   try {
 
@@ -141,7 +186,7 @@ router.post("/add", async (req, res) => {
   }
 })
 
-router.put("/update", async (req, res) => {
+router.put("/update", auth.checkRoles("user_update"), async (req, res) => {
   try {
     let body = req.body;
     let updates = {};
@@ -196,7 +241,7 @@ router.put("/update", async (req, res) => {
   }
 });
 
-router.post("/delete", async (req, res) => {
+router.post("/delete", auth.checkRoles("user_delete"), async (req, res) => {
   try {
     let body = req.body;
 
@@ -214,38 +259,13 @@ router.post("/delete", async (req, res) => {
   }
 });
 
-router.post("/auth", async (req, res) => {
+router.get("/secret", auth.checkRoles("super_secret_access"), async (req, res) => {
   try {
-    let { email, password } = req.body;
-
-    Users.validateFieldsBeforeAuth(email, password);
-
-    let user = await Users.findOne({email});
-
-    if(!user) throw new CustomError("Validation Error", "Invalid email or password", Enum.HTTP_CODES.UNAUTHORIZED);
-
-    if(!user.validPassword(password)) throw new CustomError("Validation Error", "Invalid email or password", Enum.HTTP_CODES.UNAUTHORIZED);
-
-    let payload = {
-      id: user._id,
-      exp: parseInt(Date.now() / 1000) + config.JWT_EXPIRATION_TIME
-    }
-
-    let token = jwt.encode(payload, config.JWT_SECRET);
-
-    let userData = {
-      _id: user._id,
-      email: user.email,
-      first_name: user.first_name,
-      last_name: user.last_name,
-    }
-
-    res.json(Response.successResponse({token, user: userData}));
-
-  } catch (error) {
-    let errorResponse = Response.errorResponse(error);
+    res.json(Response.successResponse({ message: "This is a super secret endpoint!" }));
+  } catch (err) {
+    let errorResponse = Response.errorResponse(err);
     res.status(errorResponse.code).json(errorResponse);
   }
-})
+});
 
 module.exports = router;
