@@ -7,6 +7,8 @@ const Enum = require('../config/Enum');
 const role_priviliges = require('../config/role_priviliges');
 const RolePrivileges = require('../db/models/RolePrivileges');
 const auth = require("../lib/auth")();
+const config = require('../config');
+const i18n = new (require('../lib/i18n'))(config.DEFAULT_LANGUAGE);
 
 router.all("*", auth.authenticate(),(req, res, next) => {
     next();
@@ -27,10 +29,10 @@ router.get('/', auth.checkRoles("role_view"), async (req, res) => {
 router.post('/add', auth.checkRoles("role_create"), async (req, res) => {
     let body = req.body;
     try {
-        if (!body) throw new CustomError('role name is required', 'role name is required', Enum.HTTP_STATUS_CODES.BAD_REQUEST);
+        if (!body) throw new CustomError(i18n.translate("COMMON.FIELD_MUST_BE_FILLED", req.user?.language, ["Role Name"]), i18n.translate("COMMON.FIELD_MUST_BE_FILLED", req.user?.language, ["Role Name"]), Enum.HTTP_CODES.BAD_REQUEST);
 
         if (!body.permissions || body.permissions.length === 0 || !Array.isArray(body.permissions)
-        ) throw new CustomError('permissions is required', 'permissions is required', Enum.HTTP_STATUS_CODES.BAD_REQUEST);
+        ) throw new CustomError(i18n.translate("COMMON.FIELD_MUST_BE_FILLED", req.user?.language, ["Permissions"]), i18n.translate("COMMON.FIELD_MUST_BE_FILLED", req.user?.language, ["Permissions"]), Enum.HTTP_CODES.BAD_REQUEST);
 
         let role = new Roles({
             role_name: body.role_name,
@@ -60,7 +62,7 @@ router.put('/update', auth.checkRoles("role_update"), async (req, res) => {
     let body = req.body;
     console.log('PUT /update - Request Body:', JSON.stringify(body, null, 2));
     try {
-        if (!body._id) throw new CustomError('Id is required', 'Id is required', Enum.HTTP_STATUS_CODES.BAD_REQUEST);
+        if (!body._id) throw new CustomError(i18n.translate("COMMON.FIELD_MUST_BE_FILLED", req.user?.language, ["Id"]), i18n.translate("COMMON.FIELD_MUST_BE_FILLED", req.user?.language, ["Id"]), Enum.HTTP_CODES.BAD_REQUEST);
         let updates = {};
         if (body.role_name) updates.role_name = body.role_name;
         if (typeof body.is_active === 'boolean') updates.is_active = body.is_active;
@@ -98,7 +100,7 @@ router.put('/update', auth.checkRoles("role_update"), async (req, res) => {
 router.delete('/delete', auth.checkRoles("role_delete"), async (req, res) => {
     let body = req.body;
     try {
-        if (!body._id) throw new CustomError('Id is required', 'Id is required', Enum.HTTP_STATUS_CODES.BAD_REQUEST);
+        if (!body._id) throw new CustomError(i18n.translate("COMMON.FIELD_MUST_BE_FILLED", req.user?.language, ["Id"]), i18n.translate("COMMON.FIELD_MUST_BE_FILLED", req.user?.language, ["Id"]), Enum.HTTP_CODES.BAD_REQUEST);
         
         // First delete all role privileges
         let privilegesResult = await RolePrivileges.deleteMany({ role_id: body._id });
